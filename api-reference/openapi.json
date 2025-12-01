@@ -5,6 +5,11 @@
       "description": "Settlement obligation tracking integrated with post_trades",
       "version": "1.0.0"
     },
+    "servers": [
+        {
+          "url": "https://settlement.uat.cypator.net/"
+        }
+    ],
     "paths": {
       "/api/client/settlements": {
         "get": {
