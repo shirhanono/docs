@@ -1,217 +1,2458 @@
 {
-  "openapi": "3.1.0",
-  "info": {
-    "title": "OpenAPI Plant Store",
-    "description": "A sample API that uses a plant store as an example to demonstrate features in the OpenAPI specification",
-    "license": {
-      "name": "MIT"
+    "openapi": "3.1.0",
+    "info": {
+      "title": "Settlement Service API",
+      "description": "Settlement obligation tracking integrated with post_trades",
+      "version": "1.0.0"
     },
-    "version": "1.0.0"
-  },
-  "servers": [
-    {
-      "url": "http://sandbox.mintlify.com"
-    }
-  ],
-  "security": [
-    {
-      "bearerAuth": []
-    }
-  ],
-  "paths": {
-    "/plants": {
-      "get": {
-        "description": "Returns all plants from the system that the user has access to",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "The maximum number of results to return",
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Plant response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Plant"
+    "paths": {
+      "/api/client/settlements": {
+        "get": {
+          "tags": [
+            "client"
+          ],
+          "summary": "Get Client Settlement Obligations",
+          "description": "Retrieve all active settlement obligation lines for the authenticated client.\n\nRequires valid client API key in X-API-Key header. The client is identified from the API key.\n\nReturns active (Open/Partial) settlement obligations with full details, grouped by settlement_obligation_id.\n\n**Authentication**: Client API key (X-API-Key header) with 'client' scope.\n\n**Response** (Normalized structure with obligation metadata and nested lines):\n```json\n{\n    \"success\": true,\n    \"settlements\": {\n        \"SET12345678\": {\n            \"client\": 1,\n            \"organizationType\": \"TAKER\",\n            \"type\": \"Net\",\n            \"status\": \"Partial\",\n            \"createdAt\": \"2025-10-28T10:00:00Z\",\n            \"updatedAt\": \"2025-10-28T11:30:00Z\",\n            \"lines\": [\n                {\n                    \"asset\": \"BTC\",\n                    \"amount\": \"1.5\",\n                    \"amountSettled\": \"0.5\",\n                    \"direction\": \"Receive\",\n                    \"status\": \"Partial\",\n                    \"settlementDate\": \"30/10/2025\"\n                }\n            ]\n        }\n    }\n}\n```\n\n**Example**:\n```bash\ncurl -H \"X-API-Key: your-client-api-key\" \\\n     \"http://localhost:8000/api/client/settlements\"\n```",
+          "operationId": "get_client_settlements_api_client_settlements_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ClientSettlementsResponse"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "API key required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Invalid API key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Client not found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
                   }
                 }
               }
             }
           },
-          "400": {
-            "description": "Unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
+          "security": [
+            {
+              "APIKeyHeader": []
+            }
+          ]
+        }
+      },
+      "/api/client/aggregated-settlements": {
+        "get": {
+          "tags": [
+            "client"
+          ],
+          "summary": "Get Client Aggregated Settlements",
+          "description": "Retrieve settlement summaries per asset for the authenticated client. Shows total amounts to receive or pay.\n\nRequires valid client API key in X-API-Key header. The client is identified from the API key.\n\nReturns aggregated settlement summary per asset showing total amounts to receive/pay,\nalong with settlement obligation status counts.\n\n**Authentication**: Client API key (X-API-Key header)\n\n**Query Parameters**:\n- asset: Optional filter by coin/currency symbol\n\n**Response**:\n```json\n{\n    \"success\": true,\n    \"client\": 1,\n    \"totalObligations\": 5,\n    \"open\": 2,\n    \"partial\": 1,\n    \"done\": 2,\n    \"aggregatedSettlements\": [\n        {\n            \"asset\": \"BTC\",\n            \"toReceive\": 1.5,\n            \"toPay\": 0\n        }\n    ],\n    \"count\": 1\n}\n```\n\n**Response Fields**:\n- **aggregatedSettlements**: Per-asset settlement amounts\n- **count**: Total number of assets\n- **totalObligations**: Total number of settlement obligations for this client\n- **open**: Number of obligations in Open status\n- **partial**: Number of obligations in Partial status\n- **done**: Number of obligations in Done status (always 0 for this endpoint as it only returns active settlements)\n\n**Example**:\n```bash\ncurl -H \"X-API-Key: your-client-api-key\" \\\n     \"http://localhost:8000/api/client/aggregated-settlements?asset=BTC\"\n```",
+          "operationId": "get_client_aggregated_settlements_api_client_aggregated_settlements_get",
+          "security": [
+            {
+              "APIKeyHeader": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "asset",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Filter by asset (BTC, USD, etc.)",
+                "title": "Asset"
+              },
+              "description": "Filter by asset (BTC, USD, etc.)"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ClientAggregatedSettlementsResponse"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "API key required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Invalid API key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Client not found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
                 }
               }
             }
           }
         }
       },
-      "post": {
-        "description": "Creates a new plant in the store",
-        "requestBody": {
-          "description": "Plant to add to the store",
-          "content": {
-            "application/json": {
+      "/api/client/settlements/log": {
+        "get": {
+          "tags": [
+            "client"
+          ],
+          "summary": "Get Settlement Log",
+          "description": "Retrieve the transaction history log (audit trail) for the client's settlement obligations, for a specific date.\n\nReturns audit trail of all settlement updates for the client's settlements only.\nShows transaction history including status changes, amounts settled, and notes.\n\n**Authentication**: Client API key (X-API-Key header)\n\n**Query Parameters**:\n- log_date: Date to filter by in YYYY-MM-DD format (optional, defaults to today)\n- asset: Optional filter by asset/coin symbol\n\n**Response**:\n```json\n{\n    \"success\": true,\n    \"transactions\": [\n        {\n            \"id\": \"456\",\n            \"settlementId\": \"123\",\n            \"client\": 1,\n            \"asset\": \"BTC\",\n            \"amountSettled\": \"0.5\",\n            \"direction\": \"Receive\",\n            \"timestamp\": \"2025-10-28T10:00:00Z\",\n            \"notes\": \"Partial settlement\",\n            \"previousStatus\": \"Open\",\n            \"newStatus\": \"Partial\"\n        }\n    ],\n    \"count\": 1,\n    \"date\": \"2025-10-28\"\n}\n```\n\n**Example (get logs for today)**:\n```bash\ncurl -H \"X-API-Key: your-client-api-key\" \\\n     \"http://localhost:8000/api/client/settlements/log\"\n```\n\n**Example (get logs for a specific date)**:\n```bash\ncurl -H \"X-API-Key: your-client-api-key\" \\\n     \"http://localhost:8000/api/client/settlements/log?log_date=2025-10-28&asset=BTC\"\n```",
+          "operationId": "get_settlement_log_api_client_settlements_log_get",
+          "security": [
+            {
+              "APIKeyHeader": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "log_date",
+              "in": "query",
+              "required": false,
               "schema": {
-                "$ref": "#/components/schemas/NewPlant"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "plant response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Plant"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/plants/{id}": {
-      "delete": {
-        "description": "Deletes a single plant based on the ID supplied",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "ID of plant to delete",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Plant deleted",
-            "content": {}
-          },
-          "400": {
-            "description": "unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  },
-  "webhooks": {
-    "/plant/webhook": {
-      "post": {
-        "description": "Information about a new plant added to the store",
-        "requestBody": {
-          "description": "Plant added to the store",
-          "content": {
-            "application/json": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Filter by date (YYYY-MM-DD format). Defaults to today if not provided.",
+                "title": "Log Date"
+              },
+              "description": "Filter by date (YYYY-MM-DD format). Defaults to today if not provided."
+            },
+            {
+              "name": "asset",
+              "in": "query",
+              "required": false,
               "schema": {
-                "$ref": "#/components/schemas/NewPlant"
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Filter by asset symbol (BTC, USD, etc.)",
+                "title": "Asset"
+              },
+              "description": "Filter by asset symbol (BTC, USD, etc.)"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SettlementLogResponse"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "API key required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Invalid API key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
               }
             }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Return a 200 status to indicate that the data was received successfully"
-          }
-        }
-      }
-    }
-  },
-  "components": {
-    "schemas": {
-      "Plant": {
-        "required": [
-          "name"
-        ],
-        "type": "object",
-        "properties": {
-          "name": {
-            "description": "The name of the plant",
-            "type": "string"
-          },
-          "tag": {
-            "description": "Tag to specify the type",
-            "type": "string"
           }
         }
       },
-      "NewPlant": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Plant"
+      "/api/client/settlements/log/{settlement_id}": {
+        "get": {
+          "tags": [
+            "client"
+          ],
+          "summary": "Get Settlement Log By Id",
+          "description": "Retrieve audit trail for a specific settlement obligation.\n\nReturns audit trail of all transactions for a single settlement obligation.\nClients can only access logs for their own settlements.\n\n**Authentication**: Client API key (X-API-Key header)\n\n**Path Parameters**:\n- settlement_id: Settlement obligation ID (e.g., \"SET12345678\")\n\n**Response**:\n```json\n{\n    \"success\": true,\n    \"settlementObligationId\": \"SET12345678\",\n    \"transactions\": [\n        {\n            \"id\": \"456\",\n            \"settlementId\": \"123\",\n            \"client\": 1,\n            \"asset\": \"BTC\",\n            \"amountSettled\": \"0.5\",\n            \"direction\": \"Receive\",\n            \"timestamp\": \"2025-10-28T10:00:00Z\",\n            \"notes\": \"Partial settlement\",\n            \"previousStatus\": \"Open\",\n            \"newStatus\": \"Partial\"\n        }\n    ],\n    \"count\": 1\n}\n```\n\n**Example**:\n```bash\ncurl -H \"X-API-Key: your-client-api-key\" \\\n     \"http://localhost:8000/api/client/settlements/log/SET12345678\"\n```",
+          "operationId": "get_settlement_log_by_id_api_client_settlements_log__settlement_id__get",
+          "security": [
+            {
+              "APIKeyHeader": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "settlement_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "description": "Settlement obligation ID (e.g., 'SET12345678')",
+                "title": "Settlement Id"
+              },
+              "description": "Settlement obligation ID (e.g., 'SET12345678')"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SettlementLogResponse"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "API key required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Invalid API key or access denied",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Settlement not found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/client/settlements/{settlement_id}": {
+        "get": {
+          "tags": [
+            "client"
+          ],
+          "summary": "Get Settlement By Id",
+          "description": "Retrieve details of a specific settlement obligation.\n\nRequires valid client API key. Clients can only access their own settlements.\n\n**Authentication**: Client API key (X-API-Key header)\n\n**Path Parameters**:\n- settlement_id: Settlement obligation ID (e.g., \"SET12345678\")\n\n**Response** (Normalized structure with obligation metadata and nested lines):\n```json\n{\n    \"success\": true,\n    \"settlement\": {\n        \"id\": \"SET12345678\",\n        \"client\": 1,\n        \"organizationType\": \"TAKER\",\n        \"type\": \"Net\",\n        \"status\": \"Partial\",\n        \"createdAt\": \"2025-10-28T10:00:00Z\",\n        \"updatedAt\": \"2025-10-28T11:30:00Z\",\n        \"lines\": [\n            {\n                \"asset\": \"BTC\",\n                \"amount\": \"1.5\",\n                \"amountSettled\": \"0.5\",\n                \"direction\": \"Receive\",\n                \"status\": \"Partial\",\n                \"settlementDate\": \"30/10/2025\"\n            }\n        ]\n    }\n}\n```\n\n**Example**:\n```bash\ncurl -H \"X-API-Key: your-client-api-key\" \\\n     \"http://localhost:8000/api/client/settlements/SET12345678\"\n```",
+          "operationId": "get_settlement_by_id_api_client_settlements__settlement_id__get",
+          "security": [
+            {
+              "APIKeyHeader": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "settlement_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "description": "Settlement obligation ID (e.g., 'SET12345678')",
+                "title": "Settlement Id"
+              },
+              "description": "Settlement obligation ID (e.g., 'SET12345678')"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SettlementDetailResponse"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "API key required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Invalid API key or access denied",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Settlement not found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/admin/settlements": {
+        "get": {
+          "tags": [
+            "admin"
+          ],
+          "summary": "Get All Settlement Obligations",
+          "description": "Retrieve all settlement obligations across all clients.\n\nAdmin-only endpoint that provides visibility into all settlement obligations\nacross all clients with powerful filtering capabilities.\n\n**Authentication**: Admin API key (X-API-Key header) with 'admin' scope.\n\n**Query Parameters**:\n- client: Filter by client organization ID (optional)\n- asset: Filter by asset symbol like BTC, USD (optional)\n- status: Filter by status - Open, Partial, or Done (optional)\n- created_date: Filter by settlement creation date in YYYY-MM-DD format (optional, defaults to current date)\n\n**Response** (Normalized structure with obligation metadata and nested lines):\n```json\n{\n    \"success\": true,\n    \"settlements\": {\n        \"SET12345678\": {\n            \"client\": 1,\n            \"organizationType\": \"TAKER\",\n            \"type\": \"Manual\",\n            \"status\": \"Partial\",\n            \"createdAt\": \"2025-10-28T10:00:00Z\",\n            \"updatedAt\": \"2025-10-28T11:30:00Z\",\n            \"lines\": [\n                {\n                    \"asset\": \"BTC\",\n                    \"amount\": \"1.5\",\n                    \"amountSettled\": \"0.5\",\n                    \"direction\": \"Receive\",\n                    \"status\": \"Partial\",\n                    \"settlementDate\": \"30/10/2025\"\n                }\n            ]\n        }\n    }\n}\n```\n\n**Example**:\n```bash\ncurl -H \"X-API-Key: admin-master-key\" \\\n     \"http://localhost:8000/api/admin/settlements?client=1&status=Partial&created_date=2025-10-28\"\n```",
+          "operationId": "get_admin_settlements_api_admin_settlements_get",
+          "security": [
+            {
+              "APIKeyHeader": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "client",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Filter by client ID",
+                "title": "Client"
+              },
+              "description": "Filter by client ID"
+            },
+            {
+              "name": "asset",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Filter by asset symbol",
+                "title": "Asset"
+              },
+              "description": "Filter by asset symbol"
+            },
+            {
+              "name": "status",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Filter by status (Open/Partial/Done)",
+                "title": "Status"
+              },
+              "description": "Filter by status (Open/Partial/Done)"
+            },
+            {
+              "name": "created_date",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Filter by creation date (YYYY-MM-DD format). Defaults to current date if not provided.",
+                "title": "Created Date"
+              },
+              "description": "Filter by creation date (YYYY-MM-DD format). Defaults to current date if not provided."
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/AdminSettlementsListResponse"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Admin API key required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Invalid admin API key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/admin/settlements/trigger": {
+        "post": {
+          "tags": [
+            "admin"
+          ],
+          "summary": "Trigger Manual Settlement",
+          "description": "Trigger the creation of settlement obligations for an organization from the existing net position. \nAdmin-only endpoint used to manually run settlement processing outside of\nthe scheduled settlement times. \n\nThe system will:\n- Processes all unsettled trades for the specified organization\n- Calculate net positions per instrument\n- Create settlement obligation with separate lines for base and quote currencies, grouped by asset\n- Link trades to the new settlement obligation\n\n\n**Authentication**: Admin API key (X-API-Key header)\n\n**Request Body**:\n```json\n{\n    \"organizationId\": 1\n}\n```\n\n**Response (Success)**:\n```json\n{\n    \"success\": true,\n    \"settlementId\": \"SET12345678\",\n    \"organizationId\": 1,\n    \"linesCreated\": 4,\n    \"tradesCount\": 15,\n    \"message\": \"Settlement created successfully with 4 lines from 15 trades\"\n}\n```\n\n**Response (No Trades)**:\n```json\n{\n    \"success\": true,\n    \"settlementId\": null,\n    \"organizationId\": 1,\n    \"linesCreated\": 0,\n    \"tradesCount\": 0,\n    \"message\": \"No unsettled trades found\"\n}\n```\n\n**Example**:\n```bash\ncurl -X POST http://localhost:8000/api/admin/settlements/trigger \\\n     -H \"X-API-Key: admin-master-key\" \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\n       \"organizationId\": 1\n     }'\n```",
+          "operationId": "trigger_settlement_api_admin_settlements_trigger_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerSettlementRequest"
+                }
+              }
+            },
+            "required": true
           },
-          {
-            "required": [
-              "id"
-            ],
-            "type": "object",
-            "properties": {
-              "id": {
-                "description": "Identification number of the plant",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/TriggerSettlementResponse"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Invalid request",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Admin API key required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Invalid admin API key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Organization not found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "APIKeyHeader": []
+            }
+          ]
+        }
+      },
+      "/api/admin/settlements/update": {
+        "post": {
+          "tags": [
+            "admin"
+          ],
+          "summary": "Update Settlement Obligation",
+          "description": "Update a settlement obligation with a payment or receipt.\n\nAllows administrators to update settlement payments. The amount is subtracted from the settled amount.\nThe direction parameter must match the settlement's direction.\n\n**Important**:\n- Direction must match the settlement's direction (error if mismatch)\n- Amount is always subtracted from settled amount\n- Validates that result is not negative\n- Requires settlementId + coin to identify the specific settlement line\n\n**Authentication**: Admin API key (X-API-Key header)\n\n**Request Body**:\n```json\n{\n    \"settlementId\": \"SET93972462\",\n    \"asset\": \"BTC\",\n    \"amount\": 0.5,\n    \"direction\": \"Pay\",\n    \"notes\": \"Payment received via wire transfer\"\n}\n```\n\n**Response**:\n```json\n{\n    \"success\": true,\n    \"data\": {\n        \"id\": \"123\",\n        \"settlementObligationId\": \"SET12345678\",\n        \"client\": 1,\n        \"asset\": \"BTC\",\n        \"amount\": 1.5,\n        \"amountSettled\": 0.5,\n        \"direction\": \"Receive\",\n        \"status\": \"Partial\",\n        \"settlementDate\": \"30/10/2025\",\n        \"type\": \"Manual\",\n        \"timestamp\": \"2025-10-28T10:00:00Z\"\n    },\n    \"log\": {\n        \"id\": \"456\",\n        \"settlementId\": \"123\",\n        \"amountSettled\": 0.5,\n        \"previousStatus\": \"Open\",\n        \"newStatus\": \"Partial\",\n        \"notes\": \"Payment received via wire transfer\",\n        \"client\": 1,\n        \"asset\": \"BTC\",\n        \"direction\": \"Receive\",\n        \"timestamp\": \"2025-10-28T10:00:00Z\"\n    },\n    \"message\": \"Settlement updated: Open → Partial\"\n}\n```\n\n**Example**:\n```bash\ncurl -X POST http://localhost:8000/api/admin/settlements/update \\\n     -H \"X-API-Key: admin-master-key\" \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"settlementId\": \"SET93972462\", \"asset\": \"BTC\", \"amount\": 0.5, \"direction\": \"Pay\"}'\n```",
+          "operationId": "update_settlement_api_admin_settlements_update_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateSettlementRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SettlementUpdateResponse"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Invalid request",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Admin API key required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Invalid admin API key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Settlement not found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "APIKeyHeader": []
+            }
+          ]
+        }
+      },
+      "/api/admin/settlements/log": {
+        "get": {
+          "tags": [
+            "admin"
+          ],
+          "summary": "Get Settlement Transaction Log",
+          "description": "Retrieve the transaction history log (audit trail) for all settlement obligations, for a specific date.\n\nAdmin-only endpoint that provides complete audit trail of all settlement\nupdates and payments across all clients for a specific date.\n\n**Authentication**: Admin API key (X-API-Key header)\n\n**Query Parameters**:\n- log_date: Date to filter by in YYYY-MM-DD format (optional, defaults to today)\n- client: Filter by client ID (optional)\n- asset: Filter by asset/coin symbol (optional)\n\n**Response**:\n```json\n{\n    \"success\": true,\n    \"transactions\": [\n        {\n            \"id\": \"456\",\n            \"settlementId\": \"123\",\n            \"client\": 1,\n            \"asset\": \"BTC\",\n            \"amountSettled\": \"0.5\",\n            \"direction\": \"Receive\",\n            \"timestamp\": \"2025-10-28T14:30:00Z\",\n            \"notes\": \"BTC payment received\",\n            \"previousStatus\": \"Open\",\n            \"newStatus\": \"Partial\"\n        }\n    ],\n    \"count\": 1,\n    \"date\": \"2025-10-28\"\n}\n```\n\n**Example (get logs for today)**:\n```bash\ncurl -H \"X-API-Key: admin-master-key\" \\\n     \"http://localhost:8000/api/admin/settlements/log\"\n```\n\n**Example (get logs for a specific date)**:\n```bash\ncurl -H \"X-API-Key: admin-master-key\" \\\n     \"http://localhost:8000/api/admin/settlements/log?log_date=2025-10-28&client=1\"\n```",
+          "operationId": "get_settlement_log_api_admin_settlements_log_get",
+          "security": [
+            {
+              "APIKeyHeader": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "log_date",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Filter by date (YYYY-MM-DD format). Defaults to today if not provided.",
+                "title": "Log Date"
+              },
+              "description": "Filter by date (YYYY-MM-DD format). Defaults to today if not provided."
+            },
+            {
+              "name": "client",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Filter by client ID",
+                "title": "Client"
+              },
+              "description": "Filter by client ID"
+            },
+            {
+              "name": "asset",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Filter by asset/coin symbol",
+                "title": "Asset"
+              },
+              "description": "Filter by asset/coin symbol"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SettlementLogResponse"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Admin API key required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Invalid admin API key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/admin/settlements/log/{settlement_id}": {
+        "get": {
+          "tags": [
+            "admin"
+          ],
+          "summary": "Get Settlement Log By Id",
+          "description": "Retrieve transaction log for a specific settlement obligation ID.\n\nAdmin-only endpoint that provides complete audit trail of all transactions\nfor a single settlement obligation.\n\n**Authentication**: Admin API key (X-API-Key header)\n\n**Path Parameters**:\n- settlement_id: Settlement obligation ID (e.g., \"SET12345678\")\n\n**Response**:\n```json\n{\n    \"success\": true,\n    \"settlementObligationId\": \"SET12345678\",\n    \"transactions\": [\n        {\n            \"id\": \"456\",\n            \"settlementId\": \"123\",\n            \"client\": 1,\n            \"asset\": \"BTC\",\n            \"amountSettled\": \"0.5\",\n            \"direction\": \"Receive\",\n            \"timestamp\": \"2025-10-28T14:30:00Z\",\n            \"source\": \"Admin\",\n            \"notes\": \"BTC payment received\",\n            \"previousStatus\": \"Open\",\n            \"newStatus\": \"Partial\"\n        }\n    ],\n    \"count\": 1\n}\n```\n\n**Example**:\n```bash\ncurl -H \"X-API-Key: admin-master-key\" \\\n     \"http://localhost:8000/api/admin/settlements/log/SET12345678\"\n```",
+          "operationId": "get_settlement_log_by_id_api_admin_settlements_log__settlement_id__get",
+          "security": [
+            {
+              "APIKeyHeader": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "settlement_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "description": "Settlement obligation ID (e.g., 'SET12345678')",
+                "title": "Settlement Id"
+              },
+              "description": "Settlement obligation ID (e.g., 'SET12345678')"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SettlementLogResponse"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Admin API key required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Invalid admin API key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Settlement not found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/admin/settlements/report/aggregated-client-settlements": {
+        "get": {
+          "tags": [
+            "admin"
+          ],
+          "summary": "Get Client Report",
+          "description": "Retrieve settlement summary grouped by client.\n\nAdmin-only endpoint that provides aggregated settlement data organized\nby client organization with status counts and net positions per asset.\n\n**Authentication**: Admin API key (X-API-Key header)\n\n**Response**:\n```json\n{\n    \"success\": true,\n    \"data\": [\n        {\n            \"client\": 1,\n            \"totalObligations\": 5,\n            \"open\": 2,\n            \"partial\": 1,\n            \"done\": 2,\n            \"assets\": {\n                \"BTC\": {\n                    \"toReceive\": 1.5,\n                    \"toPay\": 0\n                },\n                \"USD\": {\n                    \"toReceive\": 0,\n                    \"toPay\": 1000\n                }\n            }\n        }\n    ]\n}\n```\n\n**Example**:\n```bash\ncurl -H \"X-API-Key: admin-master-key\" \\\n     \"http://localhost:8000/api/admin/settlements/report/aggregated-client-settlements\"\n```",
+          "operationId": "get_client_report_api_admin_settlements_report_aggregated_client_settlements_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ClientReportListResponse"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Admin API key required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Invalid admin API key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "APIKeyHeader": []
+            }
+          ]
+        }
+      },
+      "/api/admin/settlements/report/aggregated-asset-settlements": {
+        "get": {
+          "tags": [
+            "admin"
+          ],
+          "summary": "Get Asset Report",
+          "description": "Generate aggregated report grouped by client. Shows total obligations (Open, Partial, Done) and net asset positions for every client.\n\nAdmin-only endpoint that provides aggregated settlement data organized\nby asset. Shows position for all assets that have value (non-zero net position).\n\n**Authentication**: Admin API key (X-API-Key header)\n\n**Response**:\n```json\n{\n    \"success\": true,\n    \"data\": [\n        {\n            \"asset\": \"BTC\",\n            \"toReceive\": \"5.5\",\n            \"toPay\": \"3.2\",\n            \"position\": \"2.3\"\n        },\n        {\n            \"asset\": \"USD\",\n            \"toReceive\": \"1000.0\",\n            \"toPay\": \"2000.0\",\n            \"position\": \"-1000.0\"\n        }\n    ]\n}\n```\n\n**Example**:\n```bash\ncurl -H \"X-API-Key: admin-master-key\" \\\n     \"http://localhost:8000/api/admin/settlements/report/aggregated-asset-settlements\"\n```",
+          "operationId": "get_asset_report_api_admin_settlements_report_aggregated_asset_settlements_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/AssetReportListResponse"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Admin API key required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Invalid admin API key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "APIKeyHeader": []
+            }
+          ]
+        }
+      },
+      "/api/admin/settlements/config": {
+        "post": {
+          "tags": [
+            "admin"
+          ],
+          "summary": "Set Settlement Config",
+          "description": "Set or update settlement configuration for an organization.\n\nAdmin-only endpoint to configure automatic settlement preferences including\nsettlement frequency (Net/Instant), scheduled time, timezone, and enabled status.\n\n**Authentication**: Admin API key (X-API-Key header)\n\n**Request Body**:\n```json\n{\n    \"organizationId\": 1,\n    \"settlementFrequency\": \"Net\",\n    \"settlementTime\": \"16:00:00\",\n    \"timezone\": \"Asia/Tokyo\",\n    \"enabled\": true\n}\n```\n\n**Response**:\n```json\n{\n    \"success\": true,\n    \"data\": {\n        \"organizationId\": 1,\n        \"settlementFrequency\": \"Net\",\n        \"settlementTime\": \"16:00:00\",\n        \"timezone\": \"Asia/Tokyo\",\n        \"enabled\": true,\n        \"lastSettlementTime\": null,\n        \"createdAt\": \"2025-11-25T10:00:00Z\",\n        \"updatedAt\": \"2025-11-25T10:00:00Z\"\n    },\n    \"message\": \"Settlement configuration updated successfully\"\n}\n```\n\n**Parameters**:\n- organizationId (required): Organization ID to configure\n- settlementFrequency (required): \"Net\" (scheduled) or \"Instant\" (per trade)\n- settlementTime (optional): Time in HH:MM:SS format (required for Net frequency)\n- timezone (optional): Timezone string (default: \"UTC\")\n- enabled (optional): Enable/disable automatic settlements (default: true)\n\n**Example**:\n```bash\ncurl -X POST http://localhost:8000/api/admin/settlements/config \\\n     -H \"X-API-Key: admin-master-key\" \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\n       \"organizationId\": 1,\n       \"settlementFrequency\": \"Net\",\n       \"settlementTime\": \"16:00:00\",\n       \"timezone\": \"Asia/Tokyo\",\n       \"enabled\": true\n     }'\n```",
+          "operationId": "set_settlement_config_api_admin_settlements_config_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetSettlementConfigRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SetSettlementConfigResponse"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Invalid request",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Admin API key required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Invalid admin API key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Organization not found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "APIKeyHeader": []
+            }
+          ]
+        }
+      },
+      "/api/admin/settlements/config/{organization_id}": {
+        "patch": {
+          "tags": [
+            "admin"
+          ],
+          "summary": "Update Settlement Config",
+          "description": "Update settlement configuration for an organization.\n\nAdmin-only endpoint to update specific fields of an existing settlement configuration.\nAll fields are optional - only provided fields will be updated.\n\n**Authentication**: Admin API key (X-API-Key header)\n\n**Path Parameters**:\n- organization_id: Organization ID (required)\n\n**Request Body** (all fields optional):\n```json\n{\n    \"settlementFrequency\": \"Net\",\n    \"settlementTime\": \"16:00:00\",\n    \"timezone\": \"Asia/Tokyo\",\n    \"enabled\": true\n}\n```\n\n**Response**:\n```json\n{\n    \"success\": true,\n    \"data\": {\n        \"organizationId\": 1,\n        \"settlementFrequency\": \"Net\",\n        \"settlementTime\": \"16:00:00\",\n        \"timezone\": \"Asia/Tokyo\",\n        \"enabled\": true,\n        \"lastSettlementTime\": null,\n        \"createdAt\": \"2025-11-25T10:00:00Z\",\n        \"updatedAt\": \"2025-12-01T15:30:00Z\"\n    },\n    \"message\": \"Settlement configuration updated successfully\"\n}\n```\n\n**Validation Rules**:\n- If updating to Net frequency, settlement_time must also be provided\n- Settlement time must be in HH:MM:SS format\n- Settlement frequency must be 'Net' or 'Instant'\n\n**Examples**:\n\nUpdate only enabled status:\n```bash\ncurl -X PATCH http://localhost:8000/api/admin/settlements/config/1 \\\n     -H \"X-API-Key: admin-master-key\" \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"enabled\": false}'\n```\n\nUpdate frequency and time:\n```bash\ncurl -X PATCH http://localhost:8000/api/admin/settlements/config/1 \\\n     -H \"X-API-Key: admin-master-key\" \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\n       \"settlementFrequency\": \"Net\",\n       \"settlementTime\": \"17:00:00\",\n       \"timezone\": \"Europe/London\"\n     }'\n```",
+          "operationId": "update_settlement_config_api_admin_settlements_config__organization_id__patch",
+          "security": [
+            {
+              "APIKeyHeader": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "organization_id",
+              "in": "path",
+              "required": true,
+              "schema": {
                 "type": "integer",
-                "format": "int64"
+                "exclusiveMinimum": 0,
+                "description": "Organization ID",
+                "title": "Organization Id"
+              },
+              "description": "Organization ID"
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateSettlementConfigRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/UpdateSettlementConfigResponse"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Invalid request",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Admin API key required",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Invalid admin API key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Organization or configuration not found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ErrorResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
               }
             }
           }
-        ]
+        }
       },
-      "Error": {
-        "required": [
-          "error",
-          "message"
-        ],
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string"
+      "/health": {
+        "get": {
+          "summary": "Health Check",
+          "description": "Health check with database connectivity test.\n\nTests database connection and returns current settlement count.\n\n**Response**:\n```json\n{\n    \"status\": \"healthy\",\n    \"service\": \"settlement-service\",\n    \"database\": \"connected\",\n    \"settlements\": 42,\n    \"timestamp\": \"2025-10-29T13:00:00Z\"\n}\n```",
+          "operationId": "health_check_health_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer"
+    "components": {
+      "schemas": {
+        "AdminSettlementsListResponse": {
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "title": "Success",
+              "description": "Request success status",
+              "default": true
+            },
+            "settlements": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/SettlementObligationDetailResponse"
+              },
+              "type": "object",
+              "title": "Settlements",
+              "description": "Settlement obligations grouped by settlement obligation ID"
+            },
+            "filters": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filters",
+              "description": "Applied filters"
+            }
+          },
+          "type": "object",
+          "required": [
+            "settlements"
+          ],
+          "title": "AdminSettlementsListResponse",
+          "description": "Response for admin settlements list endpoint.\nGET /api/admin/settlements\nReturns normalized settlement obligations with nested lines."
+        },
+        "AggregatedSettlementResponse": {
+          "properties": {
+            "asset": {
+              "type": "string",
+              "title": "Asset",
+              "description": "Asset symbol (BTC, USD, etc.)"
+            },
+            "toReceive": {
+              "type": "string",
+              "title": "Toreceive",
+              "description": "Total receivable amount"
+            },
+            "toPay": {
+              "type": "string",
+              "title": "Topay",
+              "description": "Total payable amount"
+            }
+          },
+          "type": "object",
+          "required": [
+            "asset",
+            "toReceive",
+            "toPay"
+          ],
+          "title": "AggregatedSettlementResponse",
+          "description": "Aggregated settlement summary per asset for a client."
+        },
+        "AssetReportListResponse": {
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "title": "Success",
+              "description": "Request success status",
+              "default": true
+            },
+            "data": {
+              "items": {
+                "$ref": "#/components/schemas/AssetReportResponse"
+              },
+              "type": "array",
+              "title": "Data",
+              "description": "List of asset reports"
+            }
+          },
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "title": "AssetReportListResponse",
+          "description": "Wrapper response for asset report list.\nGET /api/admin/settlements/report/aggregated-asset-settlements"
+        },
+        "AssetReportResponse": {
+          "properties": {
+            "asset": {
+              "type": "string",
+              "title": "Asset",
+              "description": "Asset symbol"
+            },
+            "toReceive": {
+              "type": "string",
+              "title": "Toreceive",
+              "description": "Total receivable across all clients"
+            },
+            "toPay": {
+              "type": "string",
+              "title": "Topay",
+              "description": "Total payable across all clients"
+            },
+            "position": {
+              "type": "string",
+              "title": "Position",
+              "description": "Net position (toReceive - toPay)"
+            }
+          },
+          "type": "object",
+          "required": [
+            "asset",
+            "toReceive",
+            "toPay",
+            "position"
+          ],
+          "title": "AssetReportResponse",
+          "description": "Settlement report grouped by asset.\nGET /api/admin/settlements/report/aggregated-asset-settlements"
+        },
+        "ClientAggregatedSettlementsResponse": {
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "title": "Success",
+              "description": "Request success status",
+              "default": true
+            },
+            "client": {
+              "type": "integer",
+              "title": "Client",
+              "description": "Client organization ID"
+            },
+            "totalObligations": {
+              "type": "integer",
+              "title": "Totalobligations",
+              "description": "Total number of settlement obligations"
+            },
+            "open": {
+              "type": "integer",
+              "title": "Open",
+              "description": "Number of open obligations"
+            },
+            "partial": {
+              "type": "integer",
+              "title": "Partial",
+              "description": "Number of partial obligations"
+            },
+            "done": {
+              "type": "integer",
+              "title": "Done",
+              "description": "Number of completed obligations"
+            },
+            "aggregatedSettlements": {
+              "items": {
+                "$ref": "#/components/schemas/AggregatedSettlementResponse"
+              },
+              "type": "array",
+              "title": "Aggregatedsettlements",
+              "description": "Aggregated settlements per asset"
+            },
+            "count": {
+              "type": "integer",
+              "title": "Count",
+              "description": "Total number of assets"
+            }
+          },
+          "type": "object",
+          "required": [
+            "client",
+            "totalObligations",
+            "open",
+            "partial",
+            "done",
+            "aggregatedSettlements",
+            "count"
+          ],
+          "title": "ClientAggregatedSettlementsResponse",
+          "description": "Response for client aggregated settlements endpoint.\nGET /api/client/aggregated-settlements\n\nIncludes aggregated settlement amounts per asset and status counts for settlement obligations."
+        },
+        "ClientReportListResponse": {
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "title": "Success",
+              "description": "Request success status",
+              "default": true
+            },
+            "data": {
+              "items": {
+                "$ref": "#/components/schemas/ClientReportResponse"
+              },
+              "type": "array",
+              "title": "Data",
+              "description": "List of client reports"
+            }
+          },
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "title": "ClientReportListResponse",
+          "description": "Wrapper response for client report list.\nGET /api/admin/settlements/report/aggregated-client-settlements"
+        },
+        "ClientReportResponse": {
+          "properties": {
+            "client": {
+              "type": "integer",
+              "title": "Client",
+              "description": "Client organization ID"
+            },
+            "totalObligations": {
+              "type": "integer",
+              "title": "Totalobligations",
+              "description": "Total number of obligations"
+            },
+            "open": {
+              "type": "integer",
+              "title": "Open",
+              "description": "Number of open obligations"
+            },
+            "partial": {
+              "type": "integer",
+              "title": "Partial",
+              "description": "Number of partial obligations"
+            },
+            "done": {
+              "type": "integer",
+              "title": "Done",
+              "description": "Number of completed obligations"
+            },
+            "assets": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/AggregatedSettlementResponse"
+              },
+              "type": "object",
+              "title": "Assets",
+              "description": "Net positions per asset"
+            }
+          },
+          "type": "object",
+          "required": [
+            "client",
+            "totalObligations",
+            "open",
+            "partial",
+            "done",
+            "assets"
+          ],
+          "title": "ClientReportResponse",
+          "description": "Settlement report grouped by client.\nGET /api/admin/settlements/report/aggregated-client-settlements"
+        },
+        "ClientSettlementsResponse": {
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "title": "Success",
+              "description": "Request success status",
+              "default": true
+            },
+            "settlements": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/SettlementObligationDetailResponse"
+              },
+              "type": "object",
+              "title": "Settlements",
+              "description": "Settlement obligations grouped by settlement obligation ID"
+            }
+          },
+          "type": "object",
+          "required": [
+            "settlements"
+          ],
+          "title": "ClientSettlementsResponse",
+          "description": "Main response for client settlements endpoint.\nGET /api/client/settlements\nReturns normalized settlement obligations with nested lines."
+        },
+        "Direction": {
+          "type": "string",
+          "enum": [
+            "Pay",
+            "Receive"
+          ],
+          "title": "Direction",
+          "description": "Settlement direction (Pay or Receive).\n\nSupports aliases:\n- \"P\" or \"p\" for Pay\n- \"R\" or \"r\" for Receive\n- Full names: \"Pay\", \"pay\", \"Receive\", \"receive\""
+        },
+        "ErrorResponse": {
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "title": "Success",
+              "description": "Request success status (always False)",
+              "default": false
+            },
+            "error": {
+              "type": "string",
+              "title": "Error",
+              "description": "Error message"
+            }
+          },
+          "type": "object",
+          "required": [
+            "error"
+          ],
+          "title": "ErrorResponse",
+          "description": "Standard error response for all endpoints."
+        },
+        "FullSettlementResponse": {
+          "properties": {
+            "id": {
+              "type": "string",
+              "title": "Id",
+              "description": "Settlement obligation ID (e.g., 'SET12345678')"
+            },
+            "client": {
+              "type": "integer",
+              "title": "Client",
+              "description": "Organization ID"
+            },
+            "organizationType": {
+              "type": "string",
+              "title": "Organizationtype",
+              "description": "Organization type (TAKER, MAKER, PRIME_BROKER)"
+            },
+            "type": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SettlementType"
+                }
+              ],
+              "description": "Settlement type (Net/Manual/Instant)"
+            },
+            "status": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SettlementStatus"
+                }
+              ],
+              "description": "Overall settlement status (Open/Partial/Done)"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Createdat",
+              "description": "Creation timestamp"
+            },
+            "updatedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Updatedat",
+              "description": "Last update timestamp"
+            },
+            "lines": {
+              "items": {
+                "$ref": "#/components/schemas/SettlementLineResponse"
+              },
+              "type": "array",
+              "title": "Lines",
+              "description": "Settlement obligation lines per asset"
+            }
+          },
+          "type": "object",
+          "required": [
+            "id",
+            "client",
+            "organizationType",
+            "type",
+            "status",
+            "createdAt",
+            "lines"
+          ],
+          "title": "FullSettlementResponse",
+          "description": "Full settlement obligation with all its lines.\nUsed for GET /api/client/settlements/{settlement_id}\nReturns normalized structure with obligation details and nested lines."
+        },
+        "HTTPValidationError": {
+          "properties": {
+            "detail": {
+              "items": {
+                "$ref": "#/components/schemas/ValidationError"
+              },
+              "type": "array",
+              "title": "Detail"
+            }
+          },
+          "type": "object",
+          "title": "HTTPValidationError"
+        },
+        "SetSettlementConfigRequest": {
+          "properties": {
+            "organizationId": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "title": "Organizationid",
+              "description": "Organization ID"
+            },
+            "settlementFrequency": {
+              "type": "string",
+              "title": "Settlementfrequency",
+              "description": "Settlement frequency: 'Net' or 'Instant'"
+            },
+            "settlementTime": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Settlementtime",
+              "description": "Settlement time in HH:MM:SS format (required for Net)"
+            },
+            "timezone": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Timezone",
+              "description": "Timezone (e.g., 'UTC', 'Asia/Tokyo')",
+              "default": "UTC"
+            },
+            "enabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Enabled",
+              "description": "Enable/disable automatic settlements",
+              "default": true
+            }
+          },
+          "type": "object",
+          "required": [
+            "organizationId",
+            "settlementFrequency"
+          ],
+          "title": "SetSettlementConfigRequest",
+          "description": "Request schema for setting settlement configuration.\nPOST /api/admin/settlements/config"
+        },
+        "SetSettlementConfigResponse": {
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "title": "Success",
+              "description": "Request success status",
+              "default": true
+            },
+            "data": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SettlementConfigResponse"
+                }
+              ],
+              "description": "Settlement configuration"
+            },
+            "message": {
+              "type": "string",
+              "title": "Message",
+              "description": "Success message"
+            }
+          },
+          "type": "object",
+          "required": [
+            "data",
+            "message"
+          ],
+          "title": "SetSettlementConfigResponse",
+          "description": "Response for setting settlement configuration.\nPOST /api/admin/settlements/config"
+        },
+        "SettlementConfigResponse": {
+          "properties": {
+            "organizationId": {
+              "type": "integer",
+              "title": "Organizationid",
+              "description": "Organization ID"
+            },
+            "settlementFrequency": {
+              "type": "string",
+              "title": "Settlementfrequency",
+              "description": "Settlement frequency"
+            },
+            "settlementTime": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Settlementtime",
+              "description": "Settlement time"
+            },
+            "timezone": {
+              "type": "string",
+              "title": "Timezone",
+              "description": "Timezone"
+            },
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Whether automatic settlements are enabled"
+            },
+            "lastSettlementTime": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lastsettlementtime",
+              "description": "Last settlement execution time"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Createdat",
+              "description": "Configuration creation timestamp"
+            },
+            "updatedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Updatedat",
+              "description": "Configuration last update timestamp"
+            }
+          },
+          "type": "object",
+          "required": [
+            "organizationId",
+            "settlementFrequency",
+            "timezone",
+            "enabled",
+            "createdAt"
+          ],
+          "title": "SettlementConfigResponse",
+          "description": "Settlement configuration response."
+        },
+        "SettlementDetailResponse": {
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "title": "Success",
+              "description": "Request success status",
+              "default": true
+            },
+            "settlement": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/FullSettlementResponse"
+                }
+              ],
+              "description": "Full settlement obligation with lines"
+            }
+          },
+          "type": "object",
+          "required": [
+            "settlement"
+          ],
+          "title": "SettlementDetailResponse",
+          "description": "Response for getting a full settlement with all its lines.\nGET /api/client/settlements/{settlement_id}\nReturns normalized structure with nested asset lines."
+        },
+        "SettlementLineResponse": {
+          "properties": {
+            "asset": {
+              "type": "string",
+              "title": "Asset",
+              "description": "Asset symbol (BTC, USD, etc.)"
+            },
+            "amount": {
+              "type": "string",
+              "title": "Amount",
+              "description": "Total obligation amount"
+            },
+            "amountSettled": {
+              "type": "string",
+              "title": "Amountsettled",
+              "description": "Amount settled so far"
+            },
+            "direction": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Direction"
+                }
+              ],
+              "description": "Pay or Receive"
+            },
+            "status": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SettlementStatus"
+                }
+              ],
+              "description": "Open/Partial/Done"
+            },
+            "settlementDate": {
+              "type": "string",
+              "title": "Settlementdate",
+              "description": "Settlement date in DD/MM/YYYY format"
+            }
+          },
+          "type": "object",
+          "required": [
+            "asset",
+            "amount",
+            "amountSettled",
+            "direction",
+            "status",
+            "settlementDate"
+          ],
+          "title": "SettlementLineResponse",
+          "description": "Individual settlement line representing a single asset obligation.\nPart of the normalized settlement response structure."
+        },
+        "SettlementLogEntry": {
+          "properties": {
+            "id": {
+              "type": "string",
+              "title": "Id",
+              "description": "Transaction ID"
+            },
+            "settlementId": {
+              "type": "string",
+              "title": "Settlementid",
+              "description": "Settlement obligation line ID"
+            },
+            "client": {
+              "type": "integer",
+              "title": "Client",
+              "description": "Client organization ID"
+            },
+            "asset": {
+              "type": "string",
+              "title": "Asset",
+              "description": "Asset symbol"
+            },
+            "amountSettled": {
+              "type": "string",
+              "title": "Amountsettled",
+              "description": "Amount applied in this transaction"
+            },
+            "direction": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Direction"
+                }
+              ],
+              "description": "Pay or Receive"
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Timestamp",
+              "description": "Transaction timestamp"
+            },
+            "notes": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Notes",
+              "description": "Optional notes"
+            },
+            "previousStatus": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SettlementStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Status before update"
+            },
+            "newStatus": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SettlementStatus"
+                }
+              ],
+              "description": "Status after update"
+            }
+          },
+          "type": "object",
+          "required": [
+            "id",
+            "settlementId",
+            "client",
+            "asset",
+            "amountSettled",
+            "direction",
+            "timestamp",
+            "newStatus"
+          ],
+          "title": "SettlementLogEntry",
+          "description": "Settlement transaction log entry for audit trail."
+        },
+        "SettlementLogResponse": {
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "title": "Success",
+              "description": "Request success status",
+              "default": true
+            },
+            "settlementObligationId": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Settlementobligationid",
+              "description": "Settlement obligation ID (only for single-settlement logs)"
+            },
+            "transactions": {
+              "items": {
+                "$ref": "#/components/schemas/SettlementLogEntry"
+              },
+              "type": "array",
+              "title": "Transactions",
+              "description": "List of transaction log entries"
+            },
+            "count": {
+              "type": "integer",
+              "title": "Count",
+              "description": "Total number of transactions"
+            },
+            "date": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date",
+              "description": "Date of the logs (YYYY-MM-DD format, only for date-filtered queries)"
+            }
+          },
+          "type": "object",
+          "required": [
+            "transactions",
+            "count"
+          ],
+          "title": "SettlementLogResponse",
+          "description": "Response for settlement transaction log endpoint.\nGET /api/admin/settlements/log"
+        },
+        "SettlementObligationDetailResponse": {
+          "properties": {
+            "client": {
+              "type": "integer",
+              "title": "Client",
+              "description": "Organization ID"
+            },
+            "organizationType": {
+              "type": "string",
+              "title": "Organizationtype",
+              "description": "Organization type (TAKER, MAKER, PRIME_BROKER)"
+            },
+            "type": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SettlementType"
+                }
+              ],
+              "description": "Net/Manual/Instant"
+            },
+            "status": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SettlementStatus"
+                }
+              ],
+              "description": "Overall settlement status (Open/Partial/Done)"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Createdat",
+              "description": "Creation timestamp"
+            },
+            "updatedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Updatedat",
+              "description": "Last update timestamp"
+            },
+            "lines": {
+              "items": {
+                "$ref": "#/components/schemas/SettlementLineResponse"
+              },
+              "type": "array",
+              "title": "Lines",
+              "description": "Settlement obligation lines per asset"
+            }
+          },
+          "type": "object",
+          "required": [
+            "client",
+            "organizationType",
+            "type",
+            "status",
+            "createdAt",
+            "lines"
+          ],
+          "title": "SettlementObligationDetailResponse",
+          "description": "Settlement obligation with metadata and all asset lines.\n\nRepresents the normalized structure where obligation details are at the top level\nwith lines nested underneath, eliminating redundancy from the old structure."
+        },
+        "SettlementObligationResponse": {
+          "properties": {
+            "id": {
+              "type": "string",
+              "title": "Id",
+              "description": "Settlement obligation line ID"
+            },
+            "settlementObligationId": {
+              "type": "string",
+              "title": "Settlementobligationid",
+              "description": "Settlement obligation ID (parent)"
+            },
+            "client": {
+              "type": "integer",
+              "title": "Client",
+              "description": "Organization ID"
+            },
+            "asset": {
+              "type": "string",
+              "title": "Asset",
+              "description": "Asset symbol (BTC, USD, etc.)"
+            },
+            "amount": {
+              "type": "string",
+              "title": "Amount",
+              "description": "Total obligation amount"
+            },
+            "direction": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Direction"
+                }
+              ],
+              "description": "Pay or Receive"
+            },
+            "amountSettled": {
+              "type": "string",
+              "title": "Amountsettled",
+              "description": "Amount settled so far"
+            },
+            "status": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SettlementStatus"
+                }
+              ],
+              "description": "Open/Partial/Done"
+            },
+            "settlementDate": {
+              "type": "string",
+              "title": "Settlementdate",
+              "description": "Settlement date in DD/MM/YYYY format"
+            },
+            "type": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SettlementType"
+                }
+              ],
+              "description": "Net/Manual/Instant"
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Timestamp",
+              "description": "Creation timestamp"
+            }
+          },
+          "type": "object",
+          "required": [
+            "id",
+            "settlementObligationId",
+            "client",
+            "asset",
+            "amount",
+            "direction",
+            "amountSettled",
+            "status",
+            "settlementDate",
+            "type",
+            "timestamp"
+          ],
+          "title": "SettlementObligationResponse",
+          "description": "DEPRECATED: Legacy settlement obligation response for client API.\nUse SettlementLineResponse + SettlementObligationDetailResponse for new normalized structure.\n\nRepresents a single obligation line with redundant parent fields."
+        },
+        "SettlementStatus": {
+          "type": "string",
+          "enum": [
+            "Open",
+            "Partial",
+            "Done"
+          ],
+          "title": "SettlementStatus",
+          "description": "Settlement obligation statuses."
+        },
+        "SettlementType": {
+          "type": "string",
+          "enum": [
+            "Net",
+            "Manual",
+            "Instant"
+          ],
+          "title": "SettlementType",
+          "description": "Settlement obligation types."
+        },
+        "SettlementUpdateResponse": {
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "title": "Success",
+              "description": "Request success status",
+              "default": true
+            },
+            "data": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SettlementObligationResponse"
+                }
+              ],
+              "description": "Updated settlement obligation"
+            },
+            "log": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SettlementLogEntry"
+                }
+              ],
+              "description": "Transaction log entry"
+            },
+            "message": {
+              "type": "string",
+              "title": "Message",
+              "description": "Success message"
+            }
+          },
+          "type": "object",
+          "required": [
+            "data",
+            "log",
+            "message"
+          ],
+          "title": "SettlementUpdateResponse",
+          "description": "Response for settlement update operation.\nPOST /api/admin/settlements/update"
+        },
+        "TriggerSettlementRequest": {
+          "properties": {
+            "organizationId": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "title": "Organizationid",
+              "description": "Organization ID"
+            }
+          },
+          "type": "object",
+          "required": [
+            "organizationId"
+          ],
+          "title": "TriggerSettlementRequest",
+          "description": "Request schema for manually triggering settlement.\nPOST /api/admin/settlements/trigger"
+        },
+        "TriggerSettlementResponse": {
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "title": "Success",
+              "description": "Request success status",
+              "default": true
+            },
+            "settlementId": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Settlementid",
+              "description": "Settlement obligation ID"
+            },
+            "organizationId": {
+              "type": "integer",
+              "title": "Organizationid",
+              "description": "Organization ID"
+            },
+            "linesCreated": {
+              "type": "integer",
+              "title": "Linescreated",
+              "description": "Number of settlement lines created",
+              "default": 0
+            },
+            "tradesCount": {
+              "type": "integer",
+              "title": "Tradescount",
+              "description": "Number of trades processed",
+              "default": 0
+            },
+            "message": {
+              "type": "string",
+              "title": "Message",
+              "description": "Result message"
+            }
+          },
+          "type": "object",
+          "required": [
+            "organizationId",
+            "message"
+          ],
+          "title": "TriggerSettlementResponse",
+          "description": "Response schema for settlement trigger.\nPOST /api/admin/settlements/trigger"
+        },
+        "UpdateSettlementConfigRequest": {
+          "properties": {
+            "settlementFrequency": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Settlementfrequency",
+              "description": "Settlement frequency: 'Net' or 'Instant'"
+            },
+            "settlementTime": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Settlementtime",
+              "description": "Settlement time in HH:MM:SS format"
+            },
+            "timezone": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Timezone",
+              "description": "Timezone (e.g., 'UTC', 'Asia/Tokyo')"
+            },
+            "enabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Enabled",
+              "description": "Enable/disable automatic settlements"
+            }
+          },
+          "type": "object",
+          "title": "UpdateSettlementConfigRequest",
+          "description": "Request schema for updating settlement configuration.\nPATCH /api/admin/settlements/config/{organization_id}\nAll fields are optional - only provided fields will be updated."
+        },
+        "UpdateSettlementConfigResponse": {
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "title": "Success",
+              "description": "Request success status",
+              "default": true
+            },
+            "data": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SettlementConfigResponse"
+                }
+              ],
+              "description": "Updated settlement configuration"
+            },
+            "message": {
+              "type": "string",
+              "title": "Message",
+              "description": "Success message"
+            }
+          },
+          "type": "object",
+          "required": [
+            "data",
+            "message"
+          ],
+          "title": "UpdateSettlementConfigResponse",
+          "description": "Response for updating settlement configuration.\nPATCH /api/admin/settlements/config/{organization_id}"
+        },
+        "UpdateSettlementRequest": {
+          "properties": {
+            "settlementId": {
+              "type": "string",
+              "title": "Settlementid",
+              "description": "Settlement obligation ID (e.g., 'SET93972462') - required. Must be used with 'asset'."
+            },
+            "asset": {
+              "type": "string",
+              "title": "Asset",
+              "description": "Asset symbol (e.g., 'BTC', 'USD') - required"
+            },
+            "amount": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "title": "Amount",
+              "description": "Incremental settlement amount to apply"
+            },
+            "direction": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Direction"
+                }
+              ],
+              "description": "Transaction direction: 'Pay'/'P' (recording a payment made) or 'Receive'/'R' (recording a deposit/receipt received)"
+            },
+            "notes": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Notes",
+              "description": "Optional notes for audit trail"
+            }
+          },
+          "type": "object",
+          "required": [
+            "settlementId",
+            "asset",
+            "amount",
+            "direction"
+          ],
+          "title": "UpdateSettlementRequest",
+          "description": "Request schema for updating settlement.\nPOST /api/admin/settlements/update\n\nRequires settlementId + asset to update a specific settlement obligation line."
+        },
+        "ValidationError": {
+          "properties": {
+            "loc": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "array",
+              "title": "Location"
+            },
+            "msg": {
+              "type": "string",
+              "title": "Message"
+            },
+            "type": {
+              "type": "string",
+              "title": "Error Type"
+            }
+          },
+          "type": "object",
+          "required": [
+            "loc",
+            "msg",
+            "type"
+          ],
+          "title": "ValidationError"
+        }
+      },
+      "securitySchemes": {
+        "APIKeyHeader": {
+          "type": "apiKey",
+          "in": "header",
+          "name": "X-API-Key",
+          "description": "Enter your API Key (Client or Admin)"
+        }
       }
-    }
+    },
+    "security": [
+      {
+        "APIKeyHeader": []
+      }
+    ]
   }
-}
