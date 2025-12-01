@@ -7,7 +7,7 @@
     },
     "servers": [
         {
-          "url": "https://settlement.uat.cypator.net/"
+          "url": "https://settlement.uat.cypator.net"
         }
     ],
     "paths": {
